@@ -1,0 +1,66 @@
+#step1:Upload the dataset
+from google.colab import files
+uploaded = files.upload()
+# Step 2: Load and inspect the dataset
+import pandas as pd
+df = pd.read_csv("english_movies 2.csv")
+df.head()
+ # Step 3: Basic Data Cleaning (Adjust column names as 
+needed)
+# List the actual columns in your DataFrame 'df'
+print(df.columns)
+# Replace with the correct column names if they are 
+different
+# For example, if 'genre' is named 'genres', change it 
+to:
+df = df[['title', 'genres', 'vote_average', 
+'vote_count']].dropna()
+#df = df[['title', 'Genre', 'vote_average', 
+'vote_count']].dropna()
+df.drop_duplicates(inplace=True)
+df.reset_index(drop=True, inplace=True)
+# Step 4: Combine relevant textual fields into a single 
+"soup"
+def create_soup(row):
+ return ' '.join([str(row['genres']), 
+str(row['vote_average']), str(row['vote_count'])])
+df['soup'] = df.apply(create_soup, axis=1)
+# Step 5: Convert text into feature vectors
+from sklearn.feature_extraction.text import
+TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+tfidf = TfidfVectorizer(stop_words='english')
+tfidf_matrix = tfidf.fit_transform(df['soup'])
+# Compute cosine similarity matrix
+cosine_sim = cosine_similarity(tfidf_matrix, 
+tfidf_matrix)
+# Step 6: Build the Recommendation Function
+indices = pd.Series(df.index, 
+index=df['title'].str.lower())
+def recommend(title, num_recommendations=5):
+ title = title.lower()
+ if title not in indices:
+ return ["Movie not found. Try another title."]
+ idx = indices[title]
+ sim_scores = list(enumerate(cosine_sim[idx]))
+ sim_scores = sorted(sim_scores, key=lambda x: x[1], 
+reverse=True)[1:num_recommendations+1]
+ movie_indices = [i[0] for i in sim_scores]
+ return df['title'].iloc[movie_indices].tolist()
+# Step 7: Try it!
+recommend("Inception")
+# Step 8: Deploy with Gradio
+!pip install gradio
+# Step 9: Build Gradio Interface
+import gradio as gr
+def gradio_recommend(title):
+ results = recommend(title)
+ return "\n".join(results)
+gr.Interface(
+ fn=gradio_recommend,
+ inputs=gr.Textbox(label="Enter a Movie Title"),
+ outputs="text",
+ title="? Movie Recommender",
+ description="Enter a movie title and get similar 
+movie recommendations."
+).launch()
